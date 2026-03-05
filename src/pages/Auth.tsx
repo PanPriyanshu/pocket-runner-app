@@ -30,7 +30,8 @@ const Auth = () => {
       if (isSignUp) {
         const { error } = await signUp(email, password, fullName);
         if (error) throw error;
-        toast.success('Account created! Check your email to verify.');
+        toast.success('Account created! Welcome aboard 🎉');
+        navigate('/feed');
       } else {
         const { error } = await signIn(email, password);
         if (error) throw error;

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -9,9 +9,10 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { ArrowLeft, IndianRupee, MapPin, Send } from 'lucide-react';
+import { ArrowLeft, IndianRupee, MapPin, Send, LocateFixed } from 'lucide-react';
 import { Constants } from '@/integrations/supabase/types';
 import { motion } from 'framer-motion';
+import { useGeolocation } from '@/hooks/useGeolocation';
 
 const CATEGORIES = Constants.public.Enums.item_category;
 
@@ -24,6 +25,7 @@ const CreateOrder = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
+  const { position, requestPosition, loading: geoLoading } = useGeolocation();
   const [form, setForm] = useState({
     title: '',
     description: '',
@@ -34,6 +36,10 @@ const CreateOrder = () => {
     delivery_location: '',
     upi_id: '',
     item_link: '',
+    pickup_latitude: null as number | null,
+    pickup_longitude: null as number | null,
+    delivery_latitude: null as number | null,
+    delivery_longitude: null as number | null,
   });
 
   const suggestTip = (cost: number) => {
@@ -50,6 +56,31 @@ const CreateOrder = () => {
       delivery_fee: String(suggestTip(cost)),
     }));
   };
+
+  const useCurrentAsDelivery = () => {
+    if (position) {
+      setForm((f) => ({
+        ...f,
+        delivery_latitude: position.latitude,
+        delivery_longitude: position.longitude,
+      }));
+      toast.success('Current location set as delivery point');
+    } else {
+      requestPosition();
+    }
+  };
+
+  // When position becomes available after requesting
+  useEffect(() => {
+    if (position && !form.delivery_latitude) {
+      setForm((f) => ({
+        ...f,
+        delivery_latitude: position.latitude,
+        delivery_longitude: position.longitude,
+      }));
+      toast.success('Current location set as delivery point');
+    }
+  }, [position]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -69,6 +100,10 @@ const CreateOrder = () => {
       delivery_fee: parseFloat(form.delivery_fee) || 30,
       pickup_location: form.pickup_location,
       delivery_location: form.delivery_location,
+      pickup_latitude: form.pickup_latitude,
+      pickup_longitude: form.pickup_longitude,
+      delivery_latitude: form.delivery_latitude,
+      delivery_longitude: form.delivery_longitude,
       upi_id: form.upi_id,
       item_link: form.item_link || null,
     });
@@ -186,11 +221,29 @@ const CreateOrder = () => {
                 <Label className="flex items-center gap-1">
                   <MapPin className="w-3 h-3 text-secondary" /> Delivery Location *
                 </Label>
-                <Input
-                  placeholder="e.g., Room 204, Boys Hostel 3"
-                  value={form.delivery_location}
-                  onChange={(e) => setForm((f) => ({ ...f, delivery_location: e.target.value }))}
-                />
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="e.g., Room 204, Boys Hostel 3"
+                    value={form.delivery_location}
+                    onChange={(e) => setForm((f) => ({ ...f, delivery_location: e.target.value }))}
+                    className="flex-1"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={useCurrentAsDelivery}
+                    disabled={geoLoading}
+                    title="Use my current location"
+                  >
+                    <LocateFixed className={`w-4 h-4 ${geoLoading ? 'animate-spin' : ''}`} />
+                  </Button>
+                </div>
+                {form.delivery_latitude && (
+                  <p className="text-xs text-muted-foreground">
+                    📍 GPS: {form.delivery_latitude.toFixed(5)}, {form.delivery_longitude?.toFixed(5)}
+                  </p>
+                )}
               </div>
 
               <div className="space-y-2">
