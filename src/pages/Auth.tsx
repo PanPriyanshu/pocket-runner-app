@@ -18,19 +18,10 @@ const Auth = () => {
   const { signUp, signIn } = useAuth();
   const navigate = useNavigate();
 
-  const isStudentEmail = (email: string) => {
-    return email.endsWith('.edu.in') || email.endsWith('.ac.in') || email.endsWith('.edu');
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !password) {
       toast.error('Please fill in all fields');
-      return;
-    }
-
-    if (isSignUp && !isStudentEmail(email)) {
-      toast.error('Please use your college email (.edu.in / .ac.in)');
       return;
     }
 
@@ -73,7 +64,7 @@ const Auth = () => {
           <CardHeader>
             <CardTitle className="font-heading">{isSignUp ? 'Create Account' : 'Welcome Back'}</CardTitle>
             <CardDescription>
-              {isSignUp ? 'Sign up with your college email' : 'Sign in to your account'}
+              {isSignUp ? 'Sign up with your email' : 'Sign in to your account'}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -90,11 +81,11 @@ const Auth = () => {
                 </div>
               )}
               <div className="space-y-2">
-                <Label htmlFor="email">College Email</Label>
+                <Label htmlFor="email">Email</Label>
                 <Input
                   id="email"
                   type="email"
-                  placeholder="you@college.edu.in"
+                  placeholder="you@email.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                 />
