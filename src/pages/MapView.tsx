@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Tables } from '@/integrations/supabase/types';
 import { Card, CardContent } from '@/components/ui/card';
@@ -6,6 +6,17 @@ import { Badge } from '@/components/ui/badge';
 import { MapPin, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import { useGeolocation } from '@/hooks/useGeolocation';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
+
+// Fix default marker icons
+delete (L.Icon.Default.prototype as any)._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png',
+  iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png',
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
+});
 
 type Order = Tables<'orders'>;
 
@@ -13,8 +24,12 @@ const MapView = () => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
+  const mapRef = useRef<HTMLDivElement>(null);
+  const mapInstance = useRef<L.Map | null>(null);
+  const { position, requestPosition } = useGeolocation();
 
   useEffect(() => {
+    requestPosition();
     const fetch = async () => {
       const { data } = await supabase
         .from('orders')
@@ -28,8 +43,70 @@ const MapView = () => {
     fetch();
   }, []);
 
-  // Note: Full Leaflet map requires an API tile provider.
-  // For now, show a list-based "map view" with location info.
+  // Initialize map
+  useEffect(() => {
+    if (!mapRef.current || loading) return;
+
+    const lat = position?.latitude ?? 20.5937;
+    const lng = position?.longitude ?? 78.9629;
+
+    if (mapInstance.current) {
+      mapInstance.current.remove();
+    }
+
+    const map = L.map(mapRef.current).setView([lat, lng], position ? 14 : 5);
+    mapInstance.current = map;
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap',
+    }).addTo(map);
+
+    // Current location marker
+    if (position) {
+      L.circleMarker([position.latitude, position.longitude], {
+        radius: 10,
+        fillColor: 'hsl(210, 100%, 52%)',
+        color: 'white',
+        weight: 3,
+        fillOpacity: 0.9,
+      })
+        .addTo(map)
+        .bindPopup('📍 You are here');
+    }
+
+    // Order markers
+    orders.forEach((order) => {
+      const hasPickup = order.pickup_latitude && order.pickup_longitude;
+      const hasDelivery = order.delivery_latitude && order.delivery_longitude;
+
+      if (hasPickup) {
+        L.marker([order.pickup_latitude!, order.pickup_longitude!])
+          .addTo(map)
+          .bindPopup(`
+            <strong>${order.title}</strong><br/>
+            📦 ${order.pickup_location} → ${order.delivery_location}<br/>
+            💰 ₹${Number(order.total_amount || 0).toFixed(0)}
+          `)
+          .on('click', () => navigate(`/order/${order.id}`));
+      } else if (hasDelivery) {
+        L.marker([order.delivery_latitude!, order.delivery_longitude!])
+          .addTo(map)
+          .bindPopup(`
+            <strong>${order.title}</strong><br/>
+            🏠 ${order.delivery_location}<br/>
+            💰 ₹${Number(order.total_amount || 0).toFixed(0)}
+          `)
+          .on('click', () => navigate(`/order/${order.id}`));
+      }
+    });
+
+    return () => {
+      if (mapInstance.current) {
+        mapInstance.current.remove();
+        mapInstance.current = null;
+      }
+    };
+  }, [loading, position, orders]);
 
   return (
     <div className="pt-16 pb-20 px-4 max-w-lg mx-auto">
@@ -39,13 +116,11 @@ const MapView = () => {
           Nearby Errands
         </h2>
 
-        <div className="rounded-xl overflow-hidden mb-4 bg-muted aspect-video flex items-center justify-center">
-          <div className="text-center p-6">
-            <MapPin className="w-10 h-10 text-primary mx-auto mb-2 animate-pulse-soft" />
-            <p className="text-sm text-muted-foreground">Map view coming soon!</p>
-            <p className="text-xs text-muted-foreground mt-1">Browse nearby errands below</p>
-          </div>
-        </div>
+        <div
+          ref={mapRef}
+          className="rounded-xl overflow-hidden mb-4"
+          style={{ height: '300px' }}
+        />
 
         {loading ? (
           <div className="flex justify-center py-8">

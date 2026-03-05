@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -8,9 +8,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
-import { ArrowLeft, MapPin, IndianRupee, User, Star, Send, CheckCircle2, Package, Loader2, ExternalLink } from 'lucide-react';
+import { ArrowLeft, MapPin, IndianRupee, User, Star, Send, CheckCircle2, Package, Loader2, ExternalLink, Navigation } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { motion } from 'framer-motion';
+import RouteMap from '@/components/RouteMap';
+import { useGeolocation, getDistanceKm } from '@/hooks/useGeolocation';
 
 type Order = Tables<'orders'>;
 type Message = Tables<'messages'>;
@@ -25,6 +27,8 @@ const statusConfig: Record<string, { label: string; color: string; emoji: string
   cancelled: { label: 'Cancelled', color: 'bg-destructive/10 text-destructive', emoji: '❌' },
 };
 
+const ARRIVAL_THRESHOLD_KM = 0.1; // 100 meters
+
 const OrderDetail = () => {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
@@ -37,8 +41,13 @@ const OrderDetail = () => {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [rating, setRating] = useState(0);
+  const [arrivalPrompted, setArrivalPrompted] = useState(false);
 
-  const fetchOrder = async () => {
+  const isDeliverer = user?.id === order?.deliverer_id;
+  const shouldWatch = isDeliverer && (order?.status === 'accepted' || order?.status === 'picked_up');
+  const { position } = useGeolocation(shouldWatch);
+
+  const fetchOrder = useCallback(async () => {
     if (!id) return;
     const { data } = await supabase.from('orders').select('*').eq('id', id).single();
     if (data) {
@@ -51,9 +60,9 @@ const OrderDetail = () => {
       }
     }
     setLoading(false);
-  };
+  }, [id]);
 
-  const fetchMessages = async () => {
+  const fetchMessages = useCallback(async () => {
     if (!id) return;
     const { data } = await supabase
       .from('messages')
@@ -61,12 +70,12 @@ const OrderDetail = () => {
       .eq('order_id', id)
       .order('created_at', { ascending: true });
     if (data) setMessages(data);
-  };
+  }, [id]);
 
   useEffect(() => {
     fetchOrder();
     fetchMessages();
-  }, [id]);
+  }, [fetchOrder, fetchMessages]);
 
   // Realtime
   useEffect(() => {
@@ -77,10 +86,42 @@ const OrderDetail = () => {
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `order_id=eq.${id}` }, () => fetchMessages())
       .subscribe();
     return () => { supabase.removeChannel(ch); };
-  }, [id]);
+  }, [id, fetchOrder, fetchMessages]);
+
+  // Arrival detection for deliverer
+  useEffect(() => {
+    if (!position || !order || !isDeliverer || arrivalPrompted) return;
+
+    if (order.status === 'picked_up' && order.delivery_latitude && order.delivery_longitude) {
+      const dist = getDistanceKm(
+        position.latitude, position.longitude,
+        order.delivery_latitude, order.delivery_longitude
+      );
+      if (dist <= ARRIVAL_THRESHOLD_KM) {
+        setArrivalPrompted(true);
+        toast.info('🎉 You\'ve arrived at the delivery location! Mark as delivered?', {
+          duration: 10000,
+          action: {
+            label: 'Mark Delivered',
+            onClick: () => markDelivered(),
+          },
+        });
+      }
+    }
+
+    if (order.status === 'accepted' && order.pickup_latitude && order.pickup_longitude) {
+      const dist = getDistanceKm(
+        position.latitude, position.longitude,
+        order.pickup_latitude, order.pickup_longitude
+      );
+      if (dist <= ARRIVAL_THRESHOLD_KM) {
+        setArrivalPrompted(true);
+        toast.info('📦 You\'ve arrived at the pickup location!', { duration: 5000 });
+      }
+    }
+  }, [position, order, isDeliverer, arrivalPrompted]);
 
   const isRequester = user?.id === order?.requester_id;
-  const isDeliverer = user?.id === order?.deliverer_id;
 
   const acceptOrder = async () => {
     if (!order || !user) return;
@@ -98,22 +139,46 @@ const OrderDetail = () => {
     setActionLoading(false);
   };
 
-  const confirmDelivery = async () => {
+  const markDelivered = async () => {
     if (!order) return;
+    setActionLoading(true);
+    await supabase.from('orders').update({ status: 'delivered' as any }).eq('id', order.id);
+    toast.success('Marked as delivered! Waiting for confirmation.');
+    setActionLoading(false);
+  };
+
+  const confirmDelivery = async () => {
+    if (!order || !user) return;
     setActionLoading(true);
     await supabase.from('orders').update({ requester_confirmed: true, status: 'confirmed' }).eq('id', order.id);
 
-    // Submit rating if given
+    // Credit deliverer earnings
+    if (order.deliverer_id) {
+      const { data: delivererProfile } = await supabase
+        .from('profiles')
+        .select('total_deliveries, total_earnings')
+        .eq('user_id', order.deliverer_id)
+        .single();
+
+      if (delivererProfile) {
+        await supabase.from('profiles').update({
+          total_deliveries: (delivererProfile.total_deliveries || 0) + 1,
+          total_earnings: Number(delivererProfile.total_earnings || 0) + Number(order.delivery_fee || 0),
+        }).eq('user_id', order.deliverer_id);
+      }
+    }
+
+    // Submit rating
     if (rating > 0 && order.deliverer_id) {
       await supabase.from('ratings').insert({
         order_id: order.id,
-        rater_id: user!.id,
+        rater_id: user.id,
         rated_id: order.deliverer_id,
         rating,
       });
     }
 
-    toast.success('Delivery confirmed! 🎉');
+    toast.success('Delivery confirmed! Earnings credited 🎉');
     setActionLoading(false);
   };
 
@@ -150,6 +215,8 @@ const OrderDetail = () => {
   }
 
   const status = statusConfig[order.status] || statusConfig.pending;
+  const hasMapData = (order.pickup_latitude && order.pickup_longitude) || (order.delivery_latitude && order.delivery_longitude);
+  const showMap = hasMapData && order.status !== 'pending' && order.status !== 'cancelled' && order.status !== 'confirmed';
 
   return (
     <div className="pt-16 pb-20 px-4 max-w-lg mx-auto">
@@ -157,6 +224,34 @@ const OrderDetail = () => {
         <button onClick={() => navigate(-1)} className="flex items-center gap-1 text-sm text-muted-foreground mb-4 hover:text-foreground">
           <ArrowLeft className="w-4 h-4" /> Back
         </button>
+
+        {/* Route Map */}
+        {showMap && (
+          <Card className="shadow-card mb-4">
+            <CardHeader className="pb-2">
+              <CardTitle className="font-heading text-base flex items-center gap-2">
+                <Navigation className="w-4 h-4 text-primary" /> Live Route
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-2">
+              <RouteMap
+                pickupLat={order.pickup_latitude}
+                pickupLng={order.pickup_longitude}
+                deliveryLat={order.delivery_latitude}
+                deliveryLng={order.delivery_longitude}
+                currentLat={isDeliverer ? position?.latitude : null}
+                currentLng={isDeliverer ? position?.longitude : null}
+                pickupLabel={order.pickup_location}
+                deliveryLabel={order.delivery_location}
+              />
+              {isDeliverer && position && (
+                <p className="text-xs text-muted-foreground text-center mt-2">
+                  📍 Your location is updating live
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         <Card className="shadow-card mb-4">
           <CardHeader className="pb-3">
@@ -235,7 +330,7 @@ const OrderDetail = () => {
               )}
 
               {isDeliverer && order.status === 'picked_up' && (
-                <Button onClick={() => updateStatus('delivered')} disabled={actionLoading} className="w-full">
+                <Button onClick={markDelivered} disabled={actionLoading} className="w-full">
                   📬 Mark as Delivered
                 </Button>
               )}
@@ -253,7 +348,7 @@ const OrderDetail = () => {
                     </div>
                   </div>
                   <Button onClick={confirmDelivery} disabled={actionLoading} variant="success" className="w-full">
-                    <CheckCircle2 className="w-4 h-4 mr-2" /> Confirm Receipt
+                    <CheckCircle2 className="w-4 h-4 mr-2" /> Confirm Receipt & Credit ₹{Number(order.delivery_fee).toFixed(0)}
                   </Button>
                 </div>
               )}
