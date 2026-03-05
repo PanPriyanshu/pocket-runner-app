@@ -353,7 +353,7 @@ const OrderDetail = () => {
                 </div>
               )}
 
-              {isDeliverer && order.status === 'delivered' && order.upi_id && (
+              {isRequester && (order.status === 'delivered' || order.status === 'confirmed') && order.upi_id && (
                 <a href={getUPILink() || '#'} className="block">
                   <Button variant="outline" className="w-full">
                     <IndianRupee className="w-4 h-4 mr-2" /> Pay via UPI (₹{Number(order.total_amount || 0).toFixed(0)})
