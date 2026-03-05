@@ -252,7 +252,7 @@ const OrderDetail = () => {
                       ))}
                     </div>
                   </div>
-                  <Button onClick={confirmDelivery} disabled={actionLoading} className="w-full bg-success hover:bg-success/90 text-success-foreground">
+                  <Button onClick={confirmDelivery} disabled={actionLoading} variant="success" className="w-full">
                     <CheckCircle2 className="w-4 h-4 mr-2" /> Confirm Receipt
                   </Button>
                 </div>
