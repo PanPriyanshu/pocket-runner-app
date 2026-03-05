@@ -14,7 +14,214 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      messages: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          order_id: string
+          sender_id: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          order_id: string
+          sender_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          order_id?: string
+          sender_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "messages_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      orders: {
+        Row: {
+          category: Database["public"]["Enums"]["item_category"]
+          created_at: string
+          deliverer_id: string | null
+          delivery_fee: number
+          delivery_latitude: number | null
+          delivery_location: string
+          delivery_longitude: number | null
+          delivery_proof_url: string | null
+          description: string
+          estimated_item_cost: number
+          id: string
+          item_image_url: string | null
+          item_link: string | null
+          pickup_latitude: number | null
+          pickup_location: string
+          pickup_longitude: number | null
+          requester_confirmed: boolean | null
+          requester_id: string
+          status: Database["public"]["Enums"]["order_status"]
+          title: string
+          total_amount: number | null
+          updated_at: string
+          upi_id: string | null
+        }
+        Insert: {
+          category?: Database["public"]["Enums"]["item_category"]
+          created_at?: string
+          deliverer_id?: string | null
+          delivery_fee?: number
+          delivery_latitude?: number | null
+          delivery_location: string
+          delivery_longitude?: number | null
+          delivery_proof_url?: string | null
+          description?: string
+          estimated_item_cost?: number
+          id?: string
+          item_image_url?: string | null
+          item_link?: string | null
+          pickup_latitude?: number | null
+          pickup_location: string
+          pickup_longitude?: number | null
+          requester_confirmed?: boolean | null
+          requester_id: string
+          status?: Database["public"]["Enums"]["order_status"]
+          title: string
+          total_amount?: number | null
+          updated_at?: string
+          upi_id?: string | null
+        }
+        Update: {
+          category?: Database["public"]["Enums"]["item_category"]
+          created_at?: string
+          deliverer_id?: string | null
+          delivery_fee?: number
+          delivery_latitude?: number | null
+          delivery_location?: string
+          delivery_longitude?: number | null
+          delivery_proof_url?: string | null
+          description?: string
+          estimated_item_cost?: number
+          id?: string
+          item_image_url?: string | null
+          item_link?: string | null
+          pickup_latitude?: number | null
+          pickup_location?: string
+          pickup_longitude?: number | null
+          requester_confirmed?: boolean | null
+          requester_id?: string
+          status?: Database["public"]["Enums"]["order_status"]
+          title?: string
+          total_amount?: number | null
+          updated_at?: string
+          upi_id?: string | null
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          average_rating: number | null
+          college_name: string
+          created_at: string
+          full_name: string
+          hostel_room: string | null
+          id: string
+          is_verified: boolean
+          latitude: number | null
+          longitude: number | null
+          phone: string | null
+          student_email: string | null
+          total_deliveries: number | null
+          total_earnings: number | null
+          total_requests: number | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          average_rating?: number | null
+          college_name?: string
+          created_at?: string
+          full_name?: string
+          hostel_room?: string | null
+          id?: string
+          is_verified?: boolean
+          latitude?: number | null
+          longitude?: number | null
+          phone?: string | null
+          student_email?: string | null
+          total_deliveries?: number | null
+          total_earnings?: number | null
+          total_requests?: number | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          avatar_url?: string | null
+          average_rating?: number | null
+          college_name?: string
+          created_at?: string
+          full_name?: string
+          hostel_room?: string | null
+          id?: string
+          is_verified?: boolean
+          latitude?: number | null
+          longitude?: number | null
+          phone?: string | null
+          student_email?: string | null
+          total_deliveries?: number | null
+          total_earnings?: number | null
+          total_requests?: number | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      ratings: {
+        Row: {
+          comment: string | null
+          created_at: string
+          id: string
+          order_id: string
+          rated_id: string
+          rater_id: string
+          rating: number
+        }
+        Insert: {
+          comment?: string | null
+          created_at?: string
+          id?: string
+          order_id: string
+          rated_id: string
+          rater_id: string
+          rating: number
+        }
+        Update: {
+          comment?: string | null
+          created_at?: string
+          id?: string
+          order_id?: string
+          rated_id?: string
+          rater_id?: string
+          rating?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ratings_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -23,7 +230,21 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      item_category:
+        | "stationery"
+        | "food"
+        | "medicine"
+        | "electronics"
+        | "groceries"
+        | "clothing"
+        | "other"
+      order_status:
+        | "pending"
+        | "accepted"
+        | "picked_up"
+        | "delivered"
+        | "confirmed"
+        | "cancelled"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +371,24 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      item_category: [
+        "stationery",
+        "food",
+        "medicine",
+        "electronics",
+        "groceries",
+        "clothing",
+        "other",
+      ],
+      order_status: [
+        "pending",
+        "accepted",
+        "picked_up",
+        "delivered",
+        "confirmed",
+        "cancelled",
+      ],
+    },
   },
 } as const
