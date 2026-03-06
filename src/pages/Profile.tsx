@@ -43,6 +43,7 @@ const Profile = () => {
 
   const stats = [
     { icon: Package, label: 'Deliveries', value: profile.total_deliveries || 0 },
+    { icon: User, label: 'Requests', value: profile.total_requests || 0 },
     { icon: IndianRupee, label: 'Earned', value: `₹${Number(profile.total_earnings || 0).toFixed(0)}` },
     { icon: Star, label: 'Rating', value: Number(profile.average_rating || 0) > 0 ? Number(profile.average_rating).toFixed(1) : '—' },
   ];
