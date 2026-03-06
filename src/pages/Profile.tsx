@@ -19,6 +19,11 @@ const Profile = () => {
     phone: profile?.phone || '',
   });
 
+  // Refresh profile data when page is visited
+  useEffect(() => {
+    refreshProfile();
+  }, []);
+
   const handleSave = async () => {
     if (!user) return;
     const { error } = await supabase
