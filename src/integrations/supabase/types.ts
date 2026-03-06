@@ -227,7 +227,15 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      credit_deliverer: {
+        Args: {
+          _deliverer_id: string
+          _delivery_fee: number
+          _order_id: string
+          _rating?: number
+        }
+        Returns: undefined
+      }
     }
     Enums: {
       item_category:
