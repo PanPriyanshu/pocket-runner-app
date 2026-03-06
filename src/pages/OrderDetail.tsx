@@ -152,30 +152,18 @@ const OrderDetail = () => {
     setActionLoading(true);
     await supabase.from('orders').update({ requester_confirmed: true, status: 'confirmed' }).eq('id', order.id);
 
-    // Credit deliverer earnings
+    // Credit deliverer earnings + rating via security definer function
     if (order.deliverer_id) {
-      const { data: delivererProfile } = await supabase
-        .from('profiles')
-        .select('total_deliveries, total_earnings')
-        .eq('user_id', order.deliverer_id)
-        .single();
-
-      if (delivererProfile) {
-        await supabase.from('profiles').update({
-          total_deliveries: (delivererProfile.total_deliveries || 0) + 1,
-          total_earnings: Number(delivererProfile.total_earnings || 0) + Number(order.delivery_fee || 0),
-        }).eq('user_id', order.deliverer_id);
-      }
-    }
-
-    // Submit rating
-    if (rating > 0 && order.deliverer_id) {
-      await supabase.from('ratings').insert({
-        order_id: order.id,
-        rater_id: user.id,
-        rated_id: order.deliverer_id,
-        rating,
+      const { error } = await supabase.rpc('credit_deliverer', {
+        _order_id: order.id,
+        _deliverer_id: order.deliverer_id,
+        _delivery_fee: Number(order.delivery_fee || 0),
+        _rating: rating > 0 ? rating : null,
       });
+      if (error) {
+        console.error('credit_deliverer error:', error);
+        toast.error('Failed to credit earnings');
+      }
     }
 
     toast.success('Delivery confirmed! Earnings credited 🎉');
