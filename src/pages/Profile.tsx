@@ -71,7 +71,7 @@ const Profile = () => {
               </Button>
             </div>
 
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-4 gap-3">
               {stats.map(({ icon: Icon, label, value }) => (
                 <div key={label} className="text-center p-3 rounded-lg bg-muted">
                   <Icon className="w-5 h-5 mx-auto mb-1 text-primary" />
