@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -19,6 +19,11 @@ const Profile = () => {
     phone: profile?.phone || '',
   });
 
+  // Refresh profile data when page is visited
+  useEffect(() => {
+    refreshProfile();
+  }, []);
+
   const handleSave = async () => {
     if (!user) return;
     const { error } = await supabase
@@ -38,6 +43,7 @@ const Profile = () => {
 
   const stats = [
     { icon: Package, label: 'Deliveries', value: profile.total_deliveries || 0 },
+    { icon: User, label: 'Requests', value: profile.total_requests || 0 },
     { icon: IndianRupee, label: 'Earned', value: `₹${Number(profile.total_earnings || 0).toFixed(0)}` },
     { icon: Star, label: 'Rating', value: Number(profile.average_rating || 0) > 0 ? Number(profile.average_rating).toFixed(1) : '—' },
   ];
@@ -65,7 +71,7 @@ const Profile = () => {
               </Button>
             </div>
 
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-4 gap-3">
               {stats.map(({ icon: Icon, label, value }) => (
                 <div key={label} className="text-center p-3 rounded-lg bg-muted">
                   <Icon className="w-5 h-5 mx-auto mb-1 text-primary" />
